@@ -125,14 +125,14 @@ async function speak(lines,btn){
   }
   if(CAPS.tts){
     try{ if(btn){btn._label=btn._label||btn.textContent;btn.textContent="⏸ …";speakingBtn=btn;}
-      await CAPS.tts.speak(lines.map(l=>({text:l.t,voice:l.v||"buttery",language:"de"})));
+      await CAPS.tts.speak(lines.map(l=>({text:l.t,voice:l.v||"buttery",language:"de",...(lines.slow?{rate:.75}:{})})));
     }catch(e){} finally{if(btn)btn.textContent=btn._label;speakingBtn=null;}
     return;
   }
   if(window.speechSynthesis){
     speechSynthesis.cancel();
     const voices=speechSynthesis.getVoices().filter(v=>/^de/i.test(v.lang));
-    lines.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.t);u.lang="de-DE";u.rate=.92;if(voices.length)u.voice=voices[i%voices.length];speechSynthesis.speak(u);});
+    lines.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.t);u.lang="de-DE";u.rate=lines.slow?.7:.92;if(voices.length)u.voice=voices[i%voices.length];speechSynthesis.speak(u);});
   }
 }
 const canSpeak=()=>!!CAPS.tts||!!window.speechSynthesis||Object.keys(AUDIO).length>0;
@@ -242,13 +242,13 @@ function mcBlock(qs,sec,{instant=true,numbered=true}={}){
     it.o.forEach((o,j)=>{const b=document.createElement("button");b.className="opt";b.textContent=o;b.onclick=()=>{
       if(d._done)return;
       if(instant){d._done=true;const ok=j===it.a;b.classList.add(ok?"right":"wrong");if(!ok)opts.children[it.a].classList.add("right");
-        $(".qfb",d).innerHTML=`<div class="fb ${ok?"ok":"bad"}">${ok?"Верно!":"Неверно."} ${it.e?esc(it.e):""}</div>`;record(sec,ok);}
+        $(".qfb",d).innerHTML=`<div class="fb ${ok?"ok":"bad"}">${ok?"Верно!":"Неверно."} ${it.e?esc(it.e):""}</div>`;record(sec,ok);if(!ok)addMistake({t:"mc",q:it.q,o:it.o,a:it.a,e:it.e,sec});}
       else{$$(".opt",opts).forEach(x=>x.classList.remove("sel"));b.classList.add("sel");d._sel=j;}
     };opts.append(b);});
     d._it=it;wrap.append(d);
   });
   wrap.check=()=>{let c=0;$$(".q",wrap).forEach(d=>{const it=d._it,opts=$(".opts",d);if(d._done){return;}d._done=true;
-    const ok=d._sel===it.a;if(ok)c++;if(d._sel!=null)opts.children[d._sel].classList.add(ok?"right":"wrong");opts.children[it.a].classList.add("right");record(sec,ok);});return c;};
+    const ok=d._sel===it.a;if(ok)c++;if(d._sel!=null)opts.children[d._sel].classList.add(ok?"right":"wrong");opts.children[it.a].classList.add("right");record(sec,ok);if(!ok)addMistake({t:"mc",q:it.q,o:it.o,a:it.a,e:it.e,sec});});return c;};
   return wrap;
 }
 function umlautBar(){const s=document.createElement("span");s.className="umlauts";["ä","ö","ü","ß"].forEach(ch=>{const b=document.createElement("button");b.textContent=ch;b.onmousedown=e=>e.preventDefault();b.onclick=()=>{const el=document.activeElement;if(el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA")){const p=el.selectionStart;el.value=el.value.slice(0,p)+ch+el.value.slice(el.selectionEnd);el.selectionStart=el.selectionEnd=p+1;el.dispatchEvent(new Event("input"));}};s.append(b);});return s;}
@@ -270,7 +270,7 @@ function formDrill(list,sec,label){
   function check(){if(answered){next();return;}const right=cur.v.f[cur.p],res=checkForm(inp.value,right);answered=true;
     inp.className=res==="bad"?"bad":"ok";
     fb.innerHTML=res==="ok"?`<div class="fb ok">Верно: ${PERSONS[cur.p]} <b>${esc(right)}</b>. Enter — дальше.</div>`:res==="almost"?`<div class="fb ok">Почти! Правильно пишется <b>${esc(right)}</b> (с умлаутом/ß).</div>`:`<div class="fb bad">Правильно: ${PERSONS[cur.p]} <b>${esc(right)}</b>. Enter — дальше.</div>`;
-    streak=res==="bad"?0:streak+1;$(".streak",box).textContent=streak>1?`Серия правильных: ${streak} 🔥`:"";record(sec,res!=="bad");}
+    streak=res==="bad"?0:streak+1;$(".streak",box).textContent=streak>1?`Серия правильных: ${streak} 🔥`:"";record(sec,res!=="bad");if(res==="bad")addMistake({t:"type",prompt:`${PERSONS[cur.p]} … (${cur.v.inf}) · ${label}`,ans:right,sec});}
   $("button.btn",box).onclick=check;inp.onkeydown=e=>{if(e.key==="Enter")check();};
   setTimeout(next);return box;
 }
@@ -345,7 +345,7 @@ function allVerbsDrill(b){
   function check(){if(done){next();return;}done=true;const right=cur.r[cur.t[0]][cur.p];const ok=verbFormOk(inp.value,right);inp.className=ok?"ok":"bad";
     streak=ok?streak+1:0;$(".streak",box).textContent=streak>1?`Серия: ${streak} 🔥`:"";
     $(".fbx",box).innerHTML=`<div class="fb ${ok?"ok":"bad"}">${ok?"Верно!":"Правильно:"} ${PNAMES[cur.p]} <b>${esc(right)}</b>. Enter — дальше. <a href="#" class="see">Все формы</a></div><div class="all"></div>`;
-    $(".see",box).onclick=e=>{e.preventDefault();$(".all",box).innerHTML=verbTables(cur.r);};record("allverbs",ok);}
+    $(".see",box).onclick=e=>{e.preventDefault();$(".all",box).innerHTML=verbTables(cur.r);};record("allverbs",ok);if(!ok)addMistake({t:"type",prompt:`${PNAMES[cur.p]} … (${cur.v}) · ${cur.t[1]}`,ans:right,sec:"allverbs"});}
   $("button.btn",box).onclick=check;inp.onkeydown=e=>{if(e.key==="Enter")check();};next();
 }
 const VERB_TABS=[
@@ -402,7 +402,7 @@ function perfektDrill(){
   function check(){if(answered){next();return;}answered=true;const [inf,aux,part]=cur.v;const ra=AUX[aux][cur.p];
     const okA=checkForm($(".aux",box).value,ra)!=="bad",okP=checkForm($(".part",box).value,part)!=="bad";
     $(".aux",box).className=okA?"aux ok":"aux bad";$(".part",box).className=okP?"part ok":"part bad";
-    $(".fbx",box).innerHTML=`<div class="fb ${okA&&okP?"ok":"bad"}">${okA&&okP?"Верно!":"Правильно:"} ${PERSONS[cur.p].split("/")[0]} <b>${ra}</b> … <b>${part}</b>${aux==="ist"?" (sein — движение/изменение)":""}. Enter — дальше.</div>`;record("perfekt",okA&&okP);}
+    $(".fbx",box).innerHTML=`<div class="fb ${okA&&okP?"ok":"bad"}">${okA&&okP?"Верно!":"Правильно:"} ${PERSONS[cur.p].split("/")[0]} <b>${ra}</b> … <b>${part}</b>${aux==="ist"?" (sein — движение/изменение)":""}. Enter — дальше.</div>`;record("perfekt",okA&&okP);if(!(okA&&okP))addMistake({t:"type",prompt:`${PERSONS[cur.p].split("/")[0]} … (${inf}) · Perfekt`,ans:ra+" "+part,sec:"perfekt"});}
   $("button.btn",box).onclick=check;$$("input",box).forEach(i=>i.onkeydown=e=>{if(e.key==="Enter"){if(i.classList.contains("aux")&&!answered){$(".part",box).focus();return;}check();}});
   setTimeout(next);return box;
 }
@@ -526,7 +526,7 @@ function diktat(host){
   function show(){const sent=order[k%order.length];inp.value="";$(".fbx",c).innerHTML="";$(".cnt",c).textContent=`Предложение ${k%order.length+1} из ${order.length}`;c._done=false;
     const ctl=$(".ctl",c);if(!canSpeak())return;ctl.innerHTML="";const b1=playBtn([{t:sent}],"▶ Слушать");b1.className="btn";
     const parts=sent.split(/,\s*|\s+(?=(?:und|weil|wenn|dass|ob|aber)\s)/);const pl=parts.map(t=>({t}));pl.slow=true;const b2=playBtn(pl,"🐢 Медленно, по частям");ctl.append(b1,b2);inp.focus();}
-  function check(){if(c._done){k++;show();return;}const sent=order[k%order.length];const d=wordDiff(inp.value,sent);c._done=true;const ok=d.ok===d.total&&inp.value.trim().split(/\s+/).length===d.total;record("diktat",ok);
+  function check(){if(c._done){k++;show();return;}const sent=order[k%order.length];const d=wordDiff(inp.value,sent);c._done=true;const ok=d.ok===d.total&&inp.value.trim().split(/\s+/).length===d.total;record("diktat",ok);if(!ok)addMistake({t:"diktat",ans:sent,sec:"diktat"});
     $(".fbx",c).innerHTML=`<div class="fb ${ok?"ok":"info"}">${ok?"Без ошибок! 👏":`Верно ${d.ok} из ${d.total} слов.`}</div><div class="textbox" style="margin-top:8px">${d.html}</div><p class="small muted">Зачёркнуто — лишнее или ошибочное слово, подчёркнуто — правильное слово.</p><p class="de">${esc(sent)}</p>`;}
   $(".chk",c).onclick=check;$(".nx",c).onclick=()=>{k++;show();};inp.onkeydown=e=>{if(e.key==="Enter")check();};show();
 }
@@ -578,7 +578,7 @@ PAGES.schreiben={t:"Schreiben",g:"Экзамен",d:"Письмо по 4 пун�
     const c=el(`<div class="card"><span class="pill">${task.formal?"официальное · Sie":"неофициальное · du"}</span><p style="margin:.6em 0" class="de">${esc(task.situation)}</p>
       <div class="muted small">Schreiben Sie etwas zu allen vier Punkten:</div><div class="leit">${task.punkte.map(p=>`<span>${esc(p)}</span>`).join("")}</div>
       <div class="row" style="justify-content:space-between;margin:8px 0"><span class="muted small wc">0 слов</span><span><button class="btn sec small tm">⏱ Таймер 30:00</button></span></div>
-      <div class="ab"></div><div class="row" style="margin-top:10px"><button class="btn sec qc">Быстрая проверка</button>${ltBtn()}<button class="btn ai" data-need="sample" ${CAPS.sample?"":"hidden"}>Полная проверка ИИ</button></div>${noAiNote}<div class="res"></div><div class="reslt"></div><div class="res2"></div></div>`);
+      <div class="ab"></div><div class="row" style="margin-top:10px"><button class="btn sec qc">Быстрая проверка</button>${ltBtn()}<button class="btn ai" data-need="sample" ${CAPS.sample?"":"hidden"}>Полная проверка ИИ</button></div>${noAiNote}<div class="res"></div><div class="reslt"></div><div class="res2"></div>${musterHTML(task)}</div>`);
     const {w,ta}=answerBox(task.formal?"Sehr geehrte …,\n\n…\n\nMit freundlichen Grüßen\n…":"Liebe/Lieber …,\n\n…\n\nViele Grüße\n…",260);$(".ab",c).append(w);
     const key="dtz-draft-"+task.id;ta.value=store.get(key,"");
     const upd=()=>{const n=ta.value.trim().split(/\s+/).filter(Boolean).length;$(".wc",c).textContent=n+" слов";store.set(key,ta.value);};ta.oninput=upd;upd();
@@ -744,23 +744,203 @@ PAGES.einstellungen={t:"Настройки",g:"",d:"Озвучка, микроф
 }};
 
 PAGES.fortschritt={t:"Прогресс",g:"",d:"Статистика ответов по разделам",r(m){
-  const names={praesens:"Präsens",allverbs:"Все глаголы (тренажёр)",verbcheck:"Проверка своей формы",languagetool:"Грамматика LanguageTool (без ошибок)",perfekt:"Perfekt",praeteritum:"Präteritum",konj2:"Konjunktiv II",trennbar:"Отделяемые/возвратные",verbprep:"Глаголы с предлогами",satzbau:"Порядок слов",faelle:"Падежи",wortschatz:"Лексика",hoeren:"Hören",lesen:"Lesen","schreiben-quick":"Schreiben (быстрая)","ai-schreiben":"Schreiben (Claude, B1)","sprechen1-quick":"Sprechen 1 (быстрая)","ai-sprechen1":"Sprechen 1 (Claude, B1)","sprechen2-quick":"Sprechen 2 (быстрая)","ai-sprechen2":"Sprechen 2 (Claude, B1)","sprechen3-luecke":"Sprechen 3 (пропуски)","ai-sprechen3":"Sprechen 3 (Claude, B1)",diktat:"Диктант",konnektoren:"Связки",adjektive:"Окончания прилагательных",fehler:"Найди ошибку","mix-q":"Смешанный тест (вопросы)",mix:"Смешанный тест (≥60%)"};
+  const names={praesens:"Präsens",allverbs:"Все глаголы (тренажёр)",verbcheck:"Проверка своей формы",languagetool:"Грамматика LanguageTool (без ошибок)",perfekt:"Perfekt",praeteritum:"Präteritum",konj2:"Konjunktiv II",trennbar:"Отделяемые/возвратные",verbprep:"Глаголы с предлогами",satzbau:"Порядок слов",faelle:"Падежи",wortschatz:"Лексика",hoeren:"Hören",lesen:"Lesen","schreiben-quick":"Schreiben (быстрая)","ai-schreiben":"Schreiben (Claude, B1)","sprechen1-quick":"Sprechen 1 (быстрая)","ai-sprechen1":"Sprechen 1 (Claude, B1)","sprechen2-quick":"Sprechen 2 (быстрая)","ai-sprechen2":"Sprechen 2 (Claude, B1)","sprechen3-luecke":"Sprechen 3 (пропуски)","ai-sprechen3":"Sprechen 3 (Claude, B1)",diktat:"Диктант",aussprache:"Произношение (≥85%)",pruefung:"Пробный экзамен (B1)",konnektoren:"Связки",adjektive:"Окончания прилагательных",fehler:"Найди ошибку","mix-q":"Смешанный тест (вопросы)",mix:"Смешанный тест (≥60%)"};
   const rows=Object.entries(STATS);
   m.innerHTML=`<h1>Прогресс</h1><p class="lead">Доля правильных ответов по разделам (сохраняется в этом браузере).</p><div class="card">${rows.length?rows.map(([k,s])=>{const p=Math.round(s.c/s.t*100);return`<div style="margin:10px 0"><div class="row" style="justify-content:space-between"><b>${names[k]||k}</b><span class="muted small">${s.c} / ${s.t} · ${p}%</span></div><div class="bar"><i style="width:${p}%;background:var(--${p>=75?"ok":p>=50?"gold":"bad"})"></i></div></div>`;}).join(""):`<p class="muted">Пока нет ответов. Начните с любого раздела!</p>`}</div>
    <button class="btn sec" id="rst">Сбросить статистику</button><div id="rq"></div>`;
   $("#rst").onclick=()=>{$("#rq").innerHTML=`<div class="fb bad" style="margin-top:10px">Точно сбросить? <button class="btn small" id="y">Да</button> <button class="btn sec small" id="n">Нет</button></div>`;$("#y").onclick=()=>{STATS={};store.set("dtz-stats",STATS);go();};$("#n").onclick=()=>$("#rq").innerHTML="";};
 }};
 
+// =============== МОИ ОШИБКИ (интервальное повторение) ===============
+const DAY=86400000, INTERVALS=[1,3,7];
+let MIST=store.get("dtz-mistakes",{});
+const NOTRACK=new Set(["hoeren","lesen","exam"]);
+const SECNAMES={praesens:"Präsens",perfekt:"Perfekt",praeteritum:"Präteritum",konj2:"Konjunktiv II",trennbar:"Отделяемые/возвратные",verbprep:"Глаголы с предлогами",faelle:"Падежи",wortschatz:"Лексика",konnektoren:"Связки",adjektive:"Прилагательные",fehler:"Найди ошибку","mix-q":"Смешанный тест",allverbs:"Все глаголы",diktat:"Диктант"};
+function saveMist(){store.set("dtz-mistakes",MIST);}
+function mistId(it){return fnv(JSON.stringify([it.t,it.q||it.prompt||"",it.ans||"",(it.o||[]).slice().sort().join("|")]));}
+function addMistake(it){if(!it||NOTRACK.has(it.sec))return;const id=mistId(it);const old=MIST[id];
+  MIST[id]={...it,box:0,due:Date.now()+20*3600000,n:(old?old.n:0)+1,added:old?old.added:Date.now()};saveMist();renderNav();}
+function reviewDone(id,ok){const m=MIST[id];if(!m)return;
+  if(ok){m.box++;if(m.box>INTERVALS.length){delete MIST[id];store.set("dtz-mastered",store.get("dtz-mastered",0)+1);}else m.due=Date.now()+INTERVALS[m.box-1]*DAY;}
+  else{m.box=0;m.due=Date.now()+DAY;m.n++;}
+  saveMist();renderNav();}
+const dueList=()=>Object.entries(MIST).filter(([,m])=>m.due<=Date.now());
+const dueCount=()=>dueList().length;
+
+PAGES.fehlerheft={t:"Мои ошибки",g:"Повторение",d:"Вопросы, где вы ошиблись, — с повторением через 1, 3 и 7 дней",r(m){
+  const all=Object.entries(MIST),due=dueList(),mastered=store.get("dtz-mastered",0);
+  m.innerHTML=`<h1>Мои ошибки</h1><p class="lead">Сюда автоматически попадает каждый вопрос, где вы ошиблись (грамматика, лексика, глаголы, диктант). Ответили правильно — вопрос вернётся через 1 день, потом через 3 и 7 дней. После трёх правильных ответов подряд он считается выученным.</p>
+   <div class="grid"><div class="tile"><span class="k">На сегодня</span><b class="score">${due.length}</b></div><div class="tile"><span class="k">Всего в колоде</span><b class="score">${all.length}</b></div><div class="tile"><span class="k">Выучено</span><b class="score">${mastered}</b></div></div>
+   <div class="row" style="margin:16px 0"><button class="btn rv" ${due.length?"":"disabled"}>Повторить на сегодня (${due.length})</button><button class="btn sec rva" ${all.length?"":"disabled"}>Повторить всё сейчас (${all.length})</button></div>
+   <div id="rvbox"></div><div id="mlist"></div>`;
+  $(".rv",m).onclick=()=>reviewSession($("#rvbox"),shuffle(due.map(e=>e[0])));
+  $(".rva",m).onclick=()=>reviewSession($("#rvbox"),shuffle(all.map(e=>e[0])));
+  if(!all.length){$("#mlist").innerHTML=`<div class="card"><p class="muted">Пока ошибок нет. Решайте тесты — ошибки появятся здесь сами.</p></div>`;return;}
+  const groups={};all.forEach(([id,it])=>(groups[it.sec]=groups[it.sec]||[]).push([id,it]));
+  const list=el(`<div class="card"><h3 style="margin-top:0">Все ошибки</h3>${Object.entries(groups).map(([sec,arr])=>`<h3>${esc(SECNAMES[sec]||sec)} <span class="muted small">(${arr.length})</span></h3>${arr.map(([id,it])=>`<div class="row mrow" style="justify-content:space-between;border-bottom:1px dashed var(--line);padding:6px 0"><span><span class="de">${esc(it.q||it.prompt||it.ans)}</span><br><span class="small muted">Ответ: ${esc(it.t==="mc"?it.o[it.a]:it.ans)} · ошибок: ${it.n} · ${it.due<=Date.now()?"повторить сегодня":"повтор: "+new Date(it.due).toLocaleDateString("ru-RU")}</span></span><button class="btn sec small del" data-id="${id}" title="Удалить">✕</button></div>`).join("")}`).join("")}
+    <div class="row" style="margin-top:12px"><button class="btn sec small clr">Очистить всю колоду</button><span class="cq"></span></div></div>`);
+  $$(".del",list).forEach(b=>b.onclick=()=>{delete MIST[b.dataset.id];saveMist();go();});
+  $(".clr",list).onclick=()=>{$(".cq",list).innerHTML=`Точно? <button class="btn small y">Да</button> <button class="btn sec small n">Нет</button>`;$(".y",list).onclick=()=>{MIST={};saveMist();go();};$(".n",list).onclick=()=>$(".cq",list).innerHTML="";};
+  $("#mlist").append(list);
+}};
+function reviewSession(host,ids){
+  let i=0,right=0;
+  const next=()=>{host.innerHTML="";
+    if(i>=ids.length){host.innerHTML=`<div class="card"><div class="score">Готово: ${right} из ${ids.length}</div><p>${right===ids.length?"Отлично! Всё правильно.":"Ошибки вернутся завтра — повторение работает."}</p><button class="btn sec">Обновить список</button></div>`;$("button",host).onclick=go;return;}
+    const id=ids[i],it=MIST[id];if(!it){i++;next();return;}
+    const c=el(`<div class="card"><div class="row" style="justify-content:space-between"><span class="pill">${esc(SECNAMES[it.sec]||it.sec)}</span><span class="muted small">${i+1} / ${ids.length}</span></div><div class="body"></div><div class="fbx"></div><div class="row" style="margin-top:10px"><button class="btn nx" hidden>Дальше →</button></div></div>`);
+    host.append(c);const body=$(".body",c);
+    const finish=(ok,html)=>{reviewDone(id,ok);if(ok)right++;$(".fbx",c).innerHTML=html;$(".nx",c).hidden=false;$(".nx",c).focus();};
+    $(".nx",c).onclick=()=>{i++;next();};
+    if(it.t==="mc"){const o=shuffle(it.o.map((t,j)=>({t,j})));body.innerHTML=`<p class="de" style="font-size:1.1rem">${esc(it.q||"Какое предложение правильное?")}</p><div class="opts"></div>`;
+      o.forEach(x=>{const b=document.createElement("button");b.className="opt";b.textContent=x.t;b.onclick=()=>{if(c._d)return;c._d=1;const ok=x.j===it.a;b.classList.add(ok?"right":"wrong");
+        if(!ok)$$(".opt",body).find(y=>y.textContent===it.o[it.a]).classList.add("right");finish(ok,`<div class="fb ${ok?"ok":"bad"}">${ok?"Верно!":"Неверно."} ${esc(it.e||"")}</div>`);};$(".opts",body).append(b);});}
+    else{const isD=it.t==="diktat";body.innerHTML=`<p style="font-size:1.1rem">${isD?"Прослушайте и напишите предложение:":esc(it.prompt)}</p><div class="row ctl"></div><div class="row" style="margin-top:8px"><input type="text" autocomplete="off" spellcheck="false" style="max-width:420px"><button class="btn ck">Проверить</button></div><div class="row ub" style="margin-top:8px"></div>`;
+      $(".ub",body).append(umlautBar());if(isD&&canSpeak()){$(".ctl",body).append(playBtn([{t:it.ans}],"▶ Слушать"));}
+      const inp=$("input",body);inp.focus();
+      const ck=()=>{if(c._d){i++;next();return;}c._d=1;let ok,html;
+        if(isD){const d=wordDiff(inp.value,it.ans);ok=d.ok===d.total&&inp.value.trim().split(/\s+/).length===d.total;html=`<div class="fb ${ok?"ok":"bad"}">${ok?"Без ошибок!":"Есть ошибки:"}</div><div class="textbox" style="margin-top:6px">${d.html}</div>`;}
+        else{ok=verbFormOk(inp.value,it.ans);html=`<div class="fb ${ok?"ok":"bad"}">${ok?"Верно!":"Правильно:"} <b>${esc(it.ans)}</b></div>`;}
+        inp.className=ok?"ok":"bad";finish(ok,html);};
+      $(".ck",body).onclick=ck;inp.onkeydown=e=>{if(e.key==="Enter")ck();};}
+  };next();
+}
+
+// =============== ПРОИЗНОШЕНИЕ ===============
+const _E=["null","eins","zwei","drei","vier","fünf","sechs","sieben","acht","neun","zehn","elf","zwölf","dreizehn","vierzehn","fünfzehn","sechzehn","siebzehn","achtzehn","neunzehn"],_Z={2:"zwanzig",3:"dreißig",4:"vierzig",5:"fünfzig",6:"sechzig",7:"siebzig",8:"achtzig",9:"neunzig"};
+function numDe(n){if(n<20)return _E[n];if(n<100){const e=n%10,z=n/10|0;return(e?(e===1?"ein":_E[e])+"und":"")+_Z[z];}if(n<1000){const h=n/100|0,r=n%100;return(h===1?"ein":_E[h])+"hundert"+(r?numDe(r):"");}if(n<10000){const t=n/1000|0,r=n%1000;return(t===1?"ein":_E[t])+"tausend"+(r?numDe(r):"");}return String(n);}
+function pronTokens(s){return s.replace(/(\d+):(\d\d)/g,(m,a,b)=>numDe(+a)+" uhr "+(+b?numDe(+b):"")).replace(/\d+/g,m=>numDe(+m)).toLowerCase().replace(/ß/g,"ss").replace(/[.,!?;:„“"«»()\-–]/g," ").split(/\s+/).filter(Boolean);}
+function pronDiff(user,target){const tw=target.replace(/[.,!?;:„“"«»]/g," ").split(/\s+/).filter(Boolean),a=pronTokens(target),b=pronTokens(user);
+  const L=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+  for(let i=a.length-1;i>=0;i--)for(let j=b.length-1;j>=0;j--)L[i][j]=a[i]===b[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  const hit=new Set();let i=0,j=0;while(i<a.length&&j<b.length){if(a[i]===b[j]){hit.add(i);i++;j++;}else if(L[i+1][j]>=L[i][j+1])i++;else j++;}
+  const html=tw.map((w,k)=>hit.has(k)?`<span style="color:var(--ok);font-weight:600">${esc(w)}</span>`:`<span style="color:var(--bad);text-decoration:underline wavy">${esc(w)}</span>`).join(" ");
+  return{html,score:a.length?Math.round(hit.size/a.length*100):0,missed:tw.filter((w,k)=>!hit.has(k))};}
+
+PAGES.aussprache={t:"Произношение",g:"Лексика",d:"Послушайте фразу и повторите в микрофон",r(m){
+  const list=[...AUSSPRACHE,...DIKTAT];let k=Math.random()*list.length|0;
+  m.innerHTML=`<h1>Произношение</h1><p class="lead">Послушайте фразу, нажмите «🎤 Говорить» и повторите. Сайт покажет, какие слова распознались: <span style="color:var(--ok);font-weight:600">зелёные</span> — понятно, <span style="color:var(--bad);text-decoration:underline wavy">красные</span> — стоит повторить чётче.</p>
+   <div class="note small">Это примерная проверка: программа распознавания иногда «додумывает» слова. Если слово красное несколько раз подряд — послушайте образец медленно и потренируйте именно его.</div>
+   <div id="pr"></div><div class="card" data-nomic hidden><p>В этом браузере микрофон недоступен. Откройте сайт в Chrome или Edge, либо проверьте разрешение микрофона.</p></div>`;
+  const host=$("#pr");
+  const show=()=>{const s=list[k%list.length];host.innerHTML="";
+    const c=el(`<div class="card"><div class="muted small">Фраза ${k%list.length+1} из ${list.length}</div><p class="de" style="font-size:1.45rem;line-height:1.35;margin:10px 0 14px">${esc(s)}</p>
+      <div class="row ctl"></div><div style="margin-top:14px"><textarea readonly style="min-height:70px" placeholder="Здесь появится то, что вы сказали…"></textarea><div class="muted small prev" style="min-height:1.4em"></div></div>
+      <div class="row tools"></div><div class="res"></div><div class="row" style="margin-top:10px"><button class="btn sec again">↺ Заново</button><button class="btn sec nx">Следующая фраза →</button></div></div>`);
+    host.append(c);const ta=$("textarea",c);
+    if(canSpeak()){const p1=playBtn([{t:s}],"🔊 Послушать");p1.className="btn";const sl=[{t:s}];sl.slow=true;$(".ctl",c).append(p1,playBtn(sl,"🐢 Медленно"));}
+    const mic=micFor(ta,$(".prev",c));mic.classList.add("big");$(".tools",c).append(mic);
+    let best=0;
+    ta.addEventListener("input",()=>{if(!ta.value.trim())return;const d=pronDiff(ta.value,s);
+      $(".res",c).innerHTML=`<div class="card" style="margin:10px 0 0;background:var(--bg)"><div class="row" style="justify-content:space-between"><b>Результат</b><span class="score">${d.score}%</span></div><div class="bar" style="margin:6px 0 10px"><i style="width:${d.score}%;background:var(--${d.score>=85?"ok":d.score>=60?"gold":"bad"})"></i></div><p class="de" style="font-size:1.15rem">${d.html}</p>${d.missed.length?`<p class="small muted">Потренируйте: ${d.missed.map(esc).join(", ")}</p>`:`<p class="small" style="color:var(--ok)">Отлично, всё понятно! 👏</p>`}</div>`;
+      if(d.score>best){best=d.score;}});
+    $(".again",c).onclick=()=>{if(best)record("aussprache",best>=85);ta.value="";$(".res",c).innerHTML="";best=0;};
+    $(".nx",c).onclick=()=>{if(best)record("aussprache",best>=85);k++;show();};
+  };
+  show();$("[data-nomic]",m).hidden=!!CAPS.dict||!CAPS.ready;
+}};
+
+// =============== ОБРАЗЦЫ ПИСЕМ ===============
+const MLABEL={anrede:"Обращение",einl:"Вступление",schluss:"Завершение",gruss:"Прощание"};
+function musterHTML(task){const seg=MUSTER[task.id];if(!seg)return"";
+  const hl=t=>esc(t).replace(/\b(weil|deshalb|außerdem|dass|wenn|ob|denn|damit|obwohl|trotzdem|also|dann|aber|sondern)\b/gi,'<span class="hl">$1</span>')
+    .replace(/\b(Könnten|Hätten|würde|hätte|wäre|könnten)\b/g,'<u style="text-decoration-color:var(--blue);text-decoration-thickness:2px">$1</u>').replace(/\n/g,"<br>");
+  const words=seg.map(s=>s[1]).join(" ").split(/\s+/).length;
+  return `<details class="muster" style="margin-top:14px"><summary><b>📄 Образец письма</b> <span class="muted small">— сначала попробуйте написать сами</span></summary>
+   <div style="margin-top:10px">${seg.map(([lab,t])=>{const pn=/^p(\d)$/.exec(lab);const name=pn?`Пункт ${pn[1]}: ${task.punkte[pn[1]-1]}`:MLABEL[lab];
+     return `<div style="display:grid;grid-template-columns:minmax(0,170px) 1fr;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)" class="mseg"><span class="small muted">${esc(name)}</span><span class="de" style="font-weight:400">${hl(t)}</span></div>`;}).join("")}</div>
+   <p class="small muted" style="margin-top:8px">${words} слов · <span class="hl">выделены</span> связки · <u style="text-decoration-color:var(--blue);text-decoration-thickness:2px">подчёркнуты</u> вежливые формы (Konjunktiv II)</p></details>`;}
+
+// =============== ПРОБНЫЙ ЭКЗАМЕН ===============
+let EXAM=null,EXAM_TIMER=null;
+function examTimer(secs,elx,onEnd){clearInterval(EXAM_TIMER);let t=secs;const draw=()=>{elx.textContent=`⏱ ${String(t/60|0).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`;elx.style.color=t<120?"var(--bad)":"";};draw();
+  EXAM_TIMER=setInterval(()=>{t--;draw();if(t<=0){clearInterval(EXAM_TIMER);onEnd();}},1000);}
+const pickN=(arr,n)=>shuffle(arr).slice(0,n);
+PAGES.pruefung={t:"Пробный экзамен",g:"",d:"Hören, Lesen и Schreiben с таймером — результат в баллах как на DTZ",r(m){
+  clearInterval(EXAM_TIMER);
+  const hist=store.get("dtz-exams",[]);
+  m.innerHTML=`<h1>Пробный экзамен DTZ</h1><p class="lead">Письменная часть экзамена по порядку и на время. Варианты каждый раз собираются случайно из заданий сайта.</p>
+   <div class="card"><div class="tablewrap"><table><tr><th>Часть</th><th>Время</th><th></th></tr>
+    <tr><td><b>Hören</b></td><td>25 мин</td><td class="small">Teil 1 и 3 можно прослушать 2 раза, Teil 2 и 4 — один раз. Текст не показывается.</td></tr>
+    <tr><td><b>Lesen</b></td><td>45 мин</td><td class="small">По одному заданию на каждую из 5 частей.</td></tr>
+    <tr><td><b>Schreiben</b></td><td>30 мин</td><td class="small">Одно письмо на выбор из двух тем.</td></tr></table></div>
+    <p class="small muted">Hören и Lesen считаются вместе по шкале DTZ: из 45 баллов от 33 — B1, от 20 — A2. Устную часть (Sprechen) тренируйте в разделах Sprechen 1–3: её проводят с экзаменатором и партнёром.</p>
+    <button class="btn st">Начать экзамен</button></div>
+   ${hist.length?`<div class="card"><h3 style="margin-top:0">Ваши прошлые попытки</h3><table>${hist.slice(-8).reverse().map(h=>`<tr><td>${new Date(h.date).toLocaleDateString("ru-RU")}</td><td><b>${h.pts} / 45</b> · ${h.level}</td><td class="small muted">Hören ${h.h[0]}/${h.h[1]} · Lesen ${h.l[0]}/${h.l[1]}${h.s?` · Schreiben ${h.s[0]}/${h.s[1]}`:""}</td></tr>`).join("")}</table></div>`:""}`;
+  $(".st",m).onclick=()=>{
+    const by=t=>HOEREN.filter(h=>h.teil.startsWith(t));
+    EXAM={h:[...pickN(by("Teil 1"),2),...pickN(by("Teil 2"),2),...pickN(by("Teil 3"),1),...pickN(by("Teil 4"),1)],
+      l:["Teil 1","Teil 2","Teil 3","Teil 4","Teil 5"].map(t=>pick(LESEN.filter(x=>x.teil.startsWith(t)))),
+      s:pickN(SCHREIBEN,2),res:{}};
+    examHoeren(m);};
+}};
+function examHead(m,title,step){m.innerHTML=`<div class="row" style="justify-content:space-between;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0"><div><span class="pill">Шаг ${step} из 3</span> <b>${title}</b></div><span class="score tm"></span></div><div id="ex"></div><div class="row" style="margin:16px 0"><button class="btn nx">Дальше →</button><span class="muted small cf"></span></div>`;window.scrollTo(0,0);}
+function examHoeren(m){
+  examHead(m,"Hören",1);const host=$("#ex",m),blocks=[];
+  EXAM.h.forEach((h,n)=>{const twice=/^Teil (1|3)/.test(h.teil);let left=twice?2:1;
+    const c=el(`<div class="card"><h3 style="margin-top:0">${n+1}. ${esc(h.teil)}</h3><div class="row ctl"></div><div class="qs"></div></div>`);
+    if(canSpeak()){const b=document.createElement("button");b.className="btn";const lab=()=>`▶ Слушать (осталось: ${left})`;b.textContent=lab();b._label=lab();
+      b.onclick=async()=>{if(left<=0||b.disabled)return;left--;b._label=left?lab():"Прослушано";b.disabled=true;await speak(h.lines,b);b.textContent=b._label;b.disabled=left<=0;};$(".ctl",c).append(b);}
+    else $(".ctl",c).innerHTML=`<div class="textbox">${esc(h.lines.map(l=>l.t).join("\n"))}</div>`;
+    const blk=mcBlock(h.qs,"exam",{instant:false});blocks.push(blk);$(".qs",c).append(blk);host.append(c);});
+  const done=()=>{clearInterval(EXAM_TIMER);let c=0,t=0;blocks.forEach(b=>{t+=$$(".q",b).length;c+=b.check();});EXAM.res.h=[c,t];EXAM.hCards=host;if(curAudio)curAudio.pause();try{speechSynthesis.cancel();}catch(e){}examLesen(m);};
+  $(".nx",m).textContent="Закончить Hören → Lesen";$(".nx",m).onclick=done;examTimer(25*60,$(".tm",m),done);
+}
+function examLesen(m){
+  examHead(m,"Lesen",2);const host=$("#ex",m),checks=[];
+  EXAM.l.forEach(l=>{const c=el(`<div class="card"><h3 style="margin-top:0">${esc(l.teil)}</h3><div class="textbox" style="font-family:${l.teil.includes("Wegweiser")?"ui-monospace,monospace":"inherit"}"></div><div class="qs"></div></div>`);
+    if(l.gap){const tb=$(".textbox",c),sel=[];l.parts.forEach((p,k)=>{tb.append(document.createTextNode(p));if(k<l.qs.length){const s=document.createElement("span");s.className="inline-opts";s.append(document.createTextNode(`(${k+1}) `));
+        shuffle(l.qs[k].o.map((o,j)=>({o,j}))).forEach(({o,j})=>{const b=document.createElement("button");b.className="opt";b.textContent=o;b._j=j;b.onclick=()=>{if(c._done)return;$$(".opt",s).forEach(x=>x.classList.remove("sel"));b.classList.add("sel");sel[k]=j;};s.append(b);});tb.append(s);}});
+      checks.push(()=>{c._done=true;let n=0;$$(".inline-opts",c).forEach((s,k)=>{const ok=sel[k]===l.qs[k].a;if(ok)n++;$$(".opt",s).forEach(b=>{if(b._j===l.qs[k].a)b.classList.add("right");else if(b._j===sel[k])b.classList.add("wrong");});});return[n,l.qs.length];});}
+    else{$(".textbox",c).textContent=l.text;const blk=mcBlock(l.qs,"exam",{instant:false});$(".qs",c).append(blk);checks.push(()=>[blk.check(),l.qs.length]);}
+    host.append(c);});
+  const done=()=>{clearInterval(EXAM_TIMER);let c=0,t=0;checks.forEach(f=>{const[a,b]=f();c+=a;t+=b;});EXAM.res.l=[c,t];EXAM.lCards=host;examSchreiben(m);};
+  $(".nx",m).textContent="Закончить Lesen → Schreiben";$(".nx",m).onclick=done;examTimer(45*60,$(".tm",m),done);
+}
+function examSchreiben(m){
+  examHead(m,"Schreiben",3);const host=$("#ex",m);let task=EXAM.s[0];
+  const c=el(`<div class="card"><p class="muted small">Выберите одну тему:</p><div class="tabs ch"></div><div class="tk"></div><div class="ab"></div><div class="muted small wc" style="margin-top:6px"></div></div>`);host.append(c);
+  const {w,ta}=answerBox("…",280);
+  const showTask=()=>{$(".tk",c).innerHTML=`<span class="pill">${task.formal?"официальное · Sie":"неофициальное · du"}</span><p class="de">${esc(task.situation)}</p><div class="leit">${task.punkte.map(p=>`<span>${esc(p)}</span>`).join("")}</div>`;};
+  EXAM.s.forEach((t,i)=>{const b=document.createElement("button");b.textContent=t.title;if(!i)b.className="on";b.onclick=()=>{$$(".ch button",c).forEach(x=>x.classList.remove("on"));b.classList.add("on");task=t;showTask();};$(".ch",c).append(b);});
+  showTask();$(".ab",c).append(w);ta.oninput=()=>{$(".wc",c).textContent=ta.value.trim().split(/\s+/).filter(Boolean).length+" слов";};
+  const done=()=>{clearInterval(EXAM_TIMER);EXAM.task=task;EXAM.text=ta.value;examResult(m);};
+  $(".nx",m).textContent="Сдать экзамен";$(".nx",m).onclick=done;examTimer(30*60,$(".tm",m),done);refreshCapUI();
+}
+function examResult(m){
+  const [hc,ht]=EXAM.res.h,[lc,lt]=EXAM.res.l;const pts=Math.round((hc+lc)/Math.max(1,ht+lt)*45);
+  const level=pts>=33?"B1":pts>=20?"A2":"ниже A2";
+  const items=EXAM.text.trim()?localWritingCheck(EXAM.task,EXAM.text):[];const sOk=items.filter(i=>i[0]).length;
+  const hist=store.get("dtz-exams",[]);hist.push({date:Date.now(),pts,level,h:[hc,ht],l:[lc,lt],s:items.length?[sOk,items.length]:null});store.set("dtz-exams",hist.slice(-30));record("pruefung",level==="B1");
+  m.innerHTML=`<h1>Результат пробного экзамена</h1>
+   <div class="card"><div class="row" style="justify-content:space-between"><div><div class="muted small">Hören + Lesen</div><div class="score" style="font-size:2rem">${pts} / 45</div></div><div class="score" style="font-size:2rem;color:var(--${level==="B1"?"ok":level==="A2"?"gold":"bad"})">${level}</div></div>
+    <div class="bar" style="margin:10px 0"><i style="width:${Math.round(pts/45*100)}%;background:var(--${level==="B1"?"ok":level==="A2"?"gold":"bad"})"></i></div>
+    <p class="small muted">Порог: 33 балла — B1, 20 — A2. На этом сайте вопросов меньше, чем на экзамене, поэтому результат пересчитан на шкалу из 45 баллов.</p>
+    <table><tr><td>Hören</td><td><b>${hc} / ${ht}</b></td><td class="small muted">${Math.round(hc/ht*100)}%</td></tr><tr><td>Lesen</td><td><b>${lc} / ${lt}</b></td><td class="small muted">${Math.round(lc/lt*100)}%</td></tr>
+    <tr><td>Schreiben</td><td><b>${items.length?sOk+" / "+items.length:"не написано"}</b></td><td class="small muted">быстрая проверка</td></tr></table></div>
+   <div class="card"><h3 style="margin-top:0">Письмо: ${esc(EXAM.task.title)}</h3><div class="textbox">${esc(EXAM.text)||"<span class='muted'>(пусто)</span>"}</div><div class="sres"></div>
+    <div class="row" style="margin-top:10px">${ltBtn()}<button class="btn ai" data-need="sample" ${CAPS.sample?"":"hidden"}>Полная проверка ИИ</button></div><div class="reslt"></div><div class="res2"></div>${musterHTML(EXAM.task)}</div>
+   <details class="card"><summary><b>Посмотреть ответы Hören</b></summary><div class="hrev"></div></details>
+   <details class="card"><summary><b>Посмотреть ответы Lesen</b></summary><div class="lrev"></div></details>
+   <div class="row"><button class="btn again">Пройти ещё раз</button><a class="btn sec" href="#fehlerheft" style="text-decoration:none;display:inline-flex;align-items:center">Мои ошибки</a></div>`;
+  if(items.length)renderChecklist(items,$(".sres",m));
+  $(".hrev",m).append(EXAM.hCards);$(".lrev",m).append(EXAM.lCards);$$(".hrev .ctl").forEach(x=>x.innerHTML="");
+  const t=EXAM.text;$(".lt",m)&&($(".lt",m).onclick=()=>ltCheck(t,$(".reslt",m)));
+  $(".ai",m).onclick=()=>aiEvaluate("schreiben",`${EXAM.task.formal?"Formeller":"Informeller"} Brief/E-Mail. Situation: ${EXAM.task.situation}\nLeitpunkte: ${EXAM.task.punkte.join("; ")}`,t,$(".res2",m));
+  $(".again",m).onclick=()=>{EXAM=null;go();};refreshCapUI();window.scrollTo(0,0);
+}
+
 // ---------- навигация ----------
-["start","verben","satzbau","faelle","tests","wortschatz","hoeren","lesen","schreiben","sprechen-1","sprechen-2","sprechen-3","fortschritt","einstellungen"].forEach(k=>{const v=PAGES[k];delete PAGES[k];PAGES[k]=v;});
-const SECMAP={verben:["allverbs","verbcheck","praesens","perfekt","praeteritum","konj2","trennbar","verbprep"],satzbau:["satzbau"],faelle:["faelle"],wortschatz:["wortschatz"],hoeren:["hoeren","diktat"],tests:["konnektoren","adjektive","fehler","mix","mix-q"],lesen:["lesen"],schreiben:["schreiben-quick","ai-schreiben"],"sprechen-1":["sprechen1-quick","ai-sprechen1"],"sprechen-2":["sprechen2-quick","ai-sprechen2"],"sprechen-3":["sprechen3-luecke","ai-sprechen3"]};
+["start","pruefung","verben","satzbau","faelle","tests","wortschatz","aussprache","hoeren","lesen","schreiben","sprechen-1","sprechen-2","sprechen-3","fehlerheft","fortschritt","einstellungen"].forEach(k=>{const v=PAGES[k];delete PAGES[k];PAGES[k]=v;});
+const SECMAP={verben:["allverbs","verbcheck","praesens","perfekt","praeteritum","konj2","trennbar","verbprep"],satzbau:["satzbau"],faelle:["faelle"],wortschatz:["wortschatz"],hoeren:["hoeren","diktat"],tests:["konnektoren","adjektive","fehler","mix","mix-q"],pruefung:["pruefung"],aussprache:["aussprache"],lesen:["lesen"],schreiben:["schreiben-quick","ai-schreiben"],"sprechen-1":["sprechen1-quick","ai-sprechen1"],"sprechen-2":["sprechen2-quick","ai-sprechen2"],"sprechen-3":["sprechen3-luecke","ai-sprechen3"]};
 function renderNav(){
   const cur=location.hash.slice(1)||"start";let g=null,html=`<div class="brand"><span class="flag"></span><b>DTZ B1</b></div>`;
   Object.entries(PAGES).forEach(([k,p])=>{if(p.g!==g&&p.g){html+=`<div class="navgroup">${p.g}</div>`;}g=p.g;
-    const done=(SECMAP[k]||[]).some(s=>STATS[s]&&STATS[s].t>0);html+=`<a href="#${k}" class="${k===cur?"active":""} ${done?"done":""}"><span class="dot"></span>${p.t}</a>`;});
+    const done=(SECMAP[k]||[]).some(s=>STATS[s]&&STATS[s].t>0);const badge=k==="fehlerheft"&&dueCount()?` <span class="pill" style="margin-left:auto;background:var(--accent);color:#fff;border-color:var(--accent)">${dueCount()}</span>`:"";
+    html+=`<a href="#${k}" class="${k===cur?"active":""} ${done?"done":""}"><span class="dot"></span>${p.t}${badge}</a>`;});
   $("#nav").innerHTML=html;
 }
-function go(){const k=location.hash.slice(1);const p=PAGES[k]||PAGES.start;const tt=$("#toptitle");if(tt)tt.textContent=p.t;const m=$("#app");m.innerHTML="";p.r(m);renderNav();refreshCapUI();window.scrollTo(0,0);$("#nav").classList.remove("open");
+function go(){clearInterval(EXAM_TIMER);const k=location.hash.slice(1);const p=PAGES[k]||PAGES.start;const tt=$("#toptitle");if(tt)tt.textContent=p.t;const m=$("#app");m.innerHTML="";p.r(m);renderNav();refreshCapUI();window.scrollTo(0,0);$("#nav").classList.remove("open");
   if(CAPS.dict&&DICT.state==="listening")CAPS.dict.stop().catch(()=>{});}
 window.addEventListener("hashchange",go);
 $("#menubtn").onclick=()=>$("#nav").classList.toggle("open");
