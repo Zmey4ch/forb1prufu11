@@ -322,6 +322,7 @@ function anyVerb(b){
   const show=()=>{const v=inp.value.trim();if(!v)return;const r=conjugate(v);$(".out",c).innerHTML=r?verbTables(r):`<div class="fb bad">Это не похоже на немецкий инфинитив (он оканчивается на -en или -n).</div>`;};
   $("button.btn",c).onclick=show;inp.onkeydown=e=>{if(e.key==="Enter")show();};
   $(".rnd",c).onclick=()=>{inp.value=pick(ALL_VERBS);show();};
+  try{const pv=sessionStorage.getItem("dtz-verb");if(pv){sessionStorage.removeItem("dtz-verb");inp.value=pv;show();}}catch(e){}
   $(".ck",chk).onclick=()=>{const r=conjugate($(".vi",chk).value);if(!r){$(".fbx",chk).innerHTML=`<div class="fb bad">Введите инфинитив.</div>`;return;}
     const t=$(".ts",chk).value,p=+$(".ps",chk).value;const right=r[t]?r[t][p]:null;
     if(!right){$(".fbx",chk).innerHTML=`<div class="fb info">У этого глагола нет особой формы Konjunktiv II — используйте «würde + Infinitiv»: <b>${esc(r.wuerde[p])}</b></div>`;return;}
@@ -755,11 +756,11 @@ PAGES.fortschritt={t:"Прогресс",g:"",d:"Статистика ответ�
 const DAY=86400000, INTERVALS=[1,3,7];
 let MIST=store.get("dtz-mistakes",{});
 const NOTRACK=new Set(["hoeren","lesen","exam"]);
-const SECNAMES={praesens:"Präsens",perfekt:"Perfekt",praeteritum:"Präteritum",konj2:"Konjunktiv II",trennbar:"Отделяемые/возвратные",verbprep:"Глаголы с предлогами",faelle:"Падежи",wortschatz:"Лексика",konnektoren:"Связки",adjektive:"Прилагательные",fehler:"Найди ошибку","mix-q":"Смешанный тест",allverbs:"Все глаголы",diktat:"Диктант"};
+const SECNAMES={praesens:"Präsens",perfekt:"Perfekt",praeteritum:"Präteritum",konj2:"Konjunktiv II",trennbar:"Отделяемые/возвратные",verbprep:"Глаголы с предлогами",faelle:"Падежи",wortschatz:"Лексика",konnektoren:"Связки",adjektive:"Прилагательные",fehler:"Найди ошибку","mix-q":"Смешанный тест",allverbs:"Все глаголы",diktat:"Диктант",woerterbuch:"Словарь"};
 function saveMist(){store.set("dtz-mistakes",MIST);}
 function mistId(it){return fnv(JSON.stringify([it.t,it.q||it.prompt||"",it.ans||"",(it.o||[]).slice().sort().join("|")]));}
 function addMistake(it){if(!it||NOTRACK.has(it.sec))return;const id=mistId(it);const old=MIST[id];
-  MIST[id]={...it,box:0,due:Date.now()+20*3600000,n:(old?old.n:0)+1,added:old?old.added:Date.now()};saveMist();renderNav();}
+  MIST[id]={...it,box:0,due:it.dueNow?Date.now():Date.now()+20*3600000,n:(old?old.n:0)+1,added:old?old.added:Date.now()};saveMist();renderNav();}
 function reviewDone(id,ok){const m=MIST[id];if(!m)return;
   if(ok){m.box++;if(m.box>INTERVALS.length){delete MIST[id];store.set("dtz-mastered",store.get("dtz-mastered",0)+1);}else m.due=Date.now()+INTERVALS[m.box-1]*DAY;}
   else{m.box=0;m.due=Date.now()+DAY;m.n++;}
@@ -930,8 +931,65 @@ function examResult(m){
   $(".again",m).onclick=()=>{EXAM=null;go();};refreshCapUI();window.scrollTo(0,0);
 }
 
+
+// =============== СЛОВАРЬ ===============
+const deNorm=s=>String(s).toLowerCase().replace(/\(pl\.\)/g,"").replace(/^(der|die|das|sich)\s+/,"").replace(/\s*\(.*?\)\s*/g," ").replace(/ä|ae/g,"a").replace(/ö|oe/g,"o").replace(/ü|ue/g,"u").replace(/ß/g,"ss").replace(/[!?.,]/g,"").trim();
+const ruNorm=s=>String(s).toLowerCase().replace(/ё/g,"е");
+const DIDX=WB.map(e=>({e,k:deNorm(e.de),kp:e.pl?deNorm(e.pl):"",r:ruNorm(e.ru),rw:ruNorm(e.ru).split(/[\s,;()\/«»—-]+/).filter(Boolean)}));
+function lev(a,b){if(Math.abs(a.length-b.length)>2)return 9;const d=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=1;j<=b.length;j++)d[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length];}
+function dictSearch(q){
+  const cyr=/[а-яё]/i.test(q);const res=[];
+  if(cyr){const n=ruNorm(q).trim();if(!n)return[];
+    DIDX.forEach(x=>{let sc=0;if(x.rw.includes(n))sc=100;else if(x.r.startsWith(n))sc=80;else if(x.rw.some(w=>w.startsWith(n)))sc=60;else if(x.r.includes(n))sc=30;if(sc)res.push([sc-x.r.length/100,x.e]);});}
+  else{const n=deNorm(q);if(!n)return[];
+    DIDX.forEach(x=>{let sc=0;if(x.k===n)sc=100;else if(x.kp===n)sc=90;else if(x.k.startsWith(n))sc=80;else if(x.kp&&x.kp.startsWith(n))sc=70;else if(x.k.split(/[\s-]/).some(w=>w.startsWith(n)))sc=55;else if(x.k.includes(n))sc=30;if(sc)res.push([sc-x.k.length/100,x.e]);});}
+  return res.sort((a,b)=>b[0]-a[0]).map(r=>r[1]);
+}
+function dictFuzzy(q){const n=deNorm(q);if(n.length<3)return[];return DIDX.map(x=>[lev(n,x.k),x.e]).filter(r=>r[0]<=(n.length<6?1:2)).sort((a,b)=>a[0]-b[0]).slice(0,6).map(r=>r[1]);}
+function dictVerb(de){const b=de.replace(/\s*\(.*?\)/g,"").trim();if(/^(der|die|das)\s/.test(b)||/[A-ZÄÖÜ!?]/.test(b)||/\s/.test(b.replace(/^sich\s+/,"")))return null;const a=analyze(b);return a&&(a.known||/ieren$/.test(a.inf))?b:null;}
+function dictEntry(e){
+  const m=/^(der|die|das)\s+(.+)$/.exec(e.de);const art=m?m[1]:"",word=m?m[2]:e.de;
+  const col={der:"var(--blue)",die:"var(--accent)",das:"var(--ok)"}[art];
+  const verb=dictVerb(e.de);
+  const c=el(`<div class="dentry"><div style="min-width:0"><div>${art?`<span style="color:${col};font-weight:700">${art}</span> `:""}<b class="de" style="font-size:1.08rem">${esc(word)}</b>${e.pl?` <span class="small muted">· мн.ч.: die ${esc(e.pl)}</span>`:""}</div>
+    <div>${esc(e.ru)}</div>${e.ex?`<div class="small muted de" style="font-weight:400;margin-top:2px">${esc(e.ex)}</div>`:""}</div><div class="row dbtns"></div></div>`);
+  const bt=$(".dbtns",c);
+  if(canSpeak())bt.append(playBtn([{t:e.de.replace(/\s*\(.*?\)/g,"")}],"🔊"));
+  if(verb){const v=document.createElement("button");v.className="btn sec small";v.textContent="Спряжение";v.onclick=()=>{try{sessionStorage.setItem("dtz-verb",verb);}catch(x){}location.hash="verben";};bt.append(v);}
+  const add=document.createElement("button");add.className="btn sec small";add.textContent="➕ Учить";add.title="Добавить в «Мои ошибки» для повторения";
+  add.onclick=()=>{addMistake({t:"type",prompt:`Как по-немецки: «${e.ru}»?${art?" (с артиклем)":""}`,ans:e.de.replace(/\s*\(.*?\)/g,"").trim(),sec:"woerterbuch",dueNow:true});add.textContent="✓ Добавлено";add.disabled=true;};
+  bt.append(add);return c;
+}
+async function onlineTranslate(q,box){
+  const cyr=/[а-яё]/i.test(q);box.innerHTML=`<div class="fb info"><span class="spin"></span> Перевожу…</div>`;
+  try{
+    if(CAPS.inClaude&&CAPS.sample){
+      const t=await askClaude(`Übersetze das ${cyr?"russische":"deutsche"} Wort/die Wendung „${q}“ ${cyr?"ins Deutsche":"ins Russische"}. Antworte NUR mit JSON: {"de":"<deutsches Wort; Substantive mit Artikel>","plural":"<Pluralform ohne Artikel oder leer>","ru":"<russische Übersetzung, 1–3 Varianten>","beispiel":"<einfacher deutscher Beispielsatz, Niveau A2–B1>"}`);
+      const j=parseJSON(t);box.innerHTML="";box.append(el(`<div class="note small">Перевод от Claude (этого слова нет во встроенном словаре):</div>`),dictEntry({de:j.de,pl:j.plural||"",ru:j.ru,ex:j.beispiel||""}));return;}
+    const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${cyr?"ru|de":"de|ru"}`);
+    const j=await r.json();const tr=j&&j.responseData&&j.responseData.translatedText;if(!tr)throw new Error("нет перевода");
+    box.innerHTML="";box.append(el(`<div class="note small">Машинный перевод (MyMemory) — может быть неточным, особенно для отдельных слов:</div>`),dictEntry(cyr?{de:tr,pl:"",ru:q,ex:""}:{de:q,pl:"",ru:tr,ex:""}));
+  }catch(e){box.innerHTML=`<div class="fb bad">Не удалось перевести: ${esc(e.message==="Failed to fetch"?"нет соединения":e.message||"ошибка")}</div>`;}
+}
+PAGES.woerterbuch={t:"Словарь",g:"Лексика",d:`${WB.length} слов с переводом, артиклем и мн. числом — поиск по-немецки и по-русски`,r(m){
+  m.innerHTML=`<h1>Словарь</h1><p class="lead">${WB.length} слов уровня A1–B1 по темам экзамена. Ищите по-немецки или по-русски. Умлауты можно не писать: <i>Arzte</i> найдёт <i>Ärzte</i>.</p>
+   <div class="card dsearch"><input type="search" id="dq" placeholder="Слово по-немецки или по-русски…" autocomplete="off" spellcheck="false" style="font-size:1.1rem;width:100%;font:inherit;padding:11px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink)"><div class="row ub" style="margin-top:8px"></div>
+    <p class="small muted" style="margin:6px 0 0"><span style="color:var(--blue);font-weight:700">der</span> — мужской, <span style="color:var(--accent);font-weight:700">die</span> — женский, <span style="color:var(--ok);font-weight:700">das</span> — средний род. «➕ Учить» добавляет слово в «Мои ошибки» для повторения.</p></div>
+   <div id="dinfo" class="muted small"></div><div id="dres"></div><div id="donl"></div>`;
+  $(".ub",m).append(umlautBar());const inp=$("#dq");let tmr=null;
+  const run=()=>{const q=inp.value.trim();const res=$("#dres");res.innerHTML="";$("#donl").innerHTML="";
+    if(!q){$("#dinfo").textContent="Случайные слова:";shuffle(WB).slice(0,12).forEach(e=>res.append(dictEntry(e)));return;}
+    const r=dictSearch(q);
+    if(r.length){$("#dinfo").textContent=`Найдено: ${r.length}${r.length>60?" (показаны первые 60)":""}`;r.slice(0,60).forEach(e=>res.append(dictEntry(e)));}
+    else{const fz=/[а-яё]/i.test(q)?[]:dictFuzzy(q);$("#dinfo").innerHTML=`«${esc(q)}» нет во встроенном словаре.${fz.length?" Возможно, вы имели в виду:":""}`;fz.forEach(e=>res.append(dictEntry(e)));}
+    if(!CAPS.inClaude||CAPS.sample){const b=el(`<div class="row" style="margin:14px 0"><button class="btn sec">🌐 Перевести онлайн: «${esc(q)}»</button></div>`);$("button",b).onclick=()=>onlineTranslate(q,$("#donl"));if(!r.length)$("#donl").append(b);else res.append(b);}
+  };
+  inp.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(run,150);};run();setTimeout(()=>inp.focus(),50);
+}};
+
 // ---------- навигация ----------
-["start","pruefung","verben","satzbau","faelle","tests","wortschatz","aussprache","hoeren","lesen","schreiben","sprechen-1","sprechen-2","sprechen-3","fehlerheft","fortschritt","einstellungen"].forEach(k=>{const v=PAGES[k];delete PAGES[k];PAGES[k]=v;});
+["start","pruefung","verben","satzbau","faelle","tests","wortschatz","woerterbuch","aussprache","hoeren","lesen","schreiben","sprechen-1","sprechen-2","sprechen-3","fehlerheft","fortschritt","einstellungen"].forEach(k=>{const v=PAGES[k];delete PAGES[k];PAGES[k]=v;});
 const SECMAP={verben:["allverbs","verbcheck","praesens","perfekt","praeteritum","konj2","trennbar","verbprep"],satzbau:["satzbau"],faelle:["faelle"],wortschatz:["wortschatz"],hoeren:["hoeren","diktat"],tests:["konnektoren","adjektive","fehler","mix","mix-q"],pruefung:["pruefung"],aussprache:["aussprache"],lesen:["lesen"],schreiben:["schreiben-quick","ai-schreiben"],"sprechen-1":["sprechen1-quick","ai-sprechen1"],"sprechen-2":["sprechen2-quick","ai-sprechen2"],"sprechen-3":["sprechen3-luecke","ai-sprechen3"]};
 function renderNav(){
   const cur=location.hash.slice(1)||"start";let g=null,html=`<div class="brand"><span class="flag"></span><b>DTZ B1</b></div>`;

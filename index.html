@@ -119,6 +119,11 @@ input.ok{border-color:var(--ok);background:var(--ok-soft)} input.bad{border-colo
 .opt,.chip,.tabs button,button.btn{min-height:40px}
 .mic.big{font-size:1.05rem;padding:12px 22px}
 details>summary{cursor:pointer}
+.dentry{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.dentry .dbtns{flex:none;flex-wrap:nowrap}
+.dsearch{position:sticky;top:0;z-index:4}
+@media (max-width:900px){.dsearch{top:61px}}
+@media (max-width:640px){.dentry{flex-direction:column;align-items:stretch;gap:6px}.dentry .dbtns{flex-wrap:wrap}}
 @media (max-width:640px){.mseg{grid-template-columns:1fr!important;gap:2px!important}}
 .tabs{scrollbar-width:thin}
 main{margin:0 auto;min-width:0}
@@ -204,6 +209,7 @@ main{margin:0 auto;min-width:0}
 <script src="data2.js"></script>
 <script src="data3.js"></script>
 <script src="verbs.js"></script>
+<script src="dict.js"></script>
 <script src="scenes.js"></script>
 <script src="app.js"></script>
 </body>
