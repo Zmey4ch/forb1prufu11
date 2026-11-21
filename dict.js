@@ -871,7 +871,7 @@ umziehen=переезжать
 const WB = (()=>{
   const out=[],seen=new Set(),byDe=new Map();
   const add=(de,pl,ru,ex)=>{const key=(de+"|"+pl+"|"+ru).toLowerCase();if(seen.has(key))return;seen.add(key);const e={de,pl,ru,ex};out.push(e);if(!byDe.has(de.toLowerCase()))byDe.set(de.toLowerCase(),e);};
-  DICT_RAW.trim().split("\n").forEach(l=>{const i=l.indexOf("=");if(i<0)return;const [de,pl]=l.slice(0,i).split(";");add(de.trim(),pl?pl.trim():"",l.slice(i+1).trim(),"");});
+  [DICT_RAW,typeof DICT_RAW2!=="undefined"?DICT_RAW2:"",typeof DICT_RAW3!=="undefined"?DICT_RAW3:""].join("\n").trim().split("\n").forEach(l=>{const i=l.indexOf("=");if(i<0)return;const [de,pl]=l.slice(0,i).split(";");add(de.trim(),pl?pl.trim():"",l.slice(i+1).trim(),"");});
   Object.values(WORTSCHATZ).flat().forEach(([de,ru,ex])=>{
     const base=de.split(" / ")[0].toLowerCase();const e=byDe.get(base);
     if(e){if(!e.ex)e.ex=ex;return;}add(de,"",ru,ex);});
